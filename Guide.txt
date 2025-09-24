@@ -1,0 +1,667 @@
+Excellent question! Let me provide the complete project structure with all necessary files for the enhanced multi-location system to work, while maintaining compatibility with the visualizations.
+
+## Complete Project Structure with Dependencies
+
+```
+hyperion_site_assets/
+├── common/
+│   ├── config.py
+│   ├── utils.py
+│   └── __init__.py
+├── flood/
+│   ├── 01_pull_premium_bangladesh.py
+│   ├── 02_preprocess_multi.py
+│   ├── 03_train_multi_location.py
+│   ├── 04_export_multi_assets.py
+│   ├── 05_build_dashboard.py
+│   └── requirements.txt
+├── data/
+│   ├── raw/
+│   ├── tiles/
+│   ├── previews/
+│   └── acquisition.json
+├── outputs/
+│   ├── models/
+│   ├── predictions/
+│   └── metrics/
+└── assets/
+    ├── hero/
+    ├── dashboard/
+    ├── comparisons/
+    └── 3d/
+```
+
+## Required Files
+
+### 1. **common/config.py** - Updated for Bangladesh locations
+
+```python
+"""
+Global configuration for Hyperion Flood Detection
+Updated for Bangladesh multi-location analysis
+"""
+import os
+
+# Google Earth Engine
+GCP_PROJECT = "hyperion-472805"  # Your existing project
+
+# Bangladesh flood locations
+BANGLADESH_FLOODS = [
+    {
+        "name": "Sylhet_2022",
+        "aoi": [24.7, 91.5, 25.0, 91.9],
+        "periods": {
+            "pre": {"start": "2022-05-01", "end": "2022-05-20"},
+            "flood": {"start": "2022-06-15", "end": "2022-06-22"},
+            "post": {"start": "2022-07-10", "end": "2022-07-25"}
+        }
+    },
+    {
+        "name": "Kurigram_2024",
+        "aoi": [25.7, 89.5, 26.0, 89.8],
+        "periods": {
+            "pre": {"start": "2024-06-01", "end": "2024-06-15"},
+            "flood": {"start": "2024-07-01", "end": "2024-07-10"},
+            "post": {"start": "2024-07-20", "end": "2024-08-05"}
+        }
+    }
+]
+
+# Default AOI (for backward compatibility)
+FLOOD_AOI = BANGLADESH_FLOODS[0]["aoi"]
+
+# Search periods (for backward compatibility)
+SEARCH_PERIODS = BANGLADESH_FLOODS[0]["periods"]
+
+# Paths
+ASSET_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(ASSET_DIR, "../data")
+OUTPUT_DIR = os.path.join(ASSET_DIR, "../outputs")
+
+# Processing parameters
+SCALE = 10  # Resolution in meters
+TILE_SIZE = 256
+TILE_OVERLAP = 0.5
+
+def initialize_ee():
+    """Initialize Earth Engine with error handling"""
+    import ee
+    try:
+        ee.Initialize(project=GCP_PROJECT)
+        return True
+    except:
+        ee.Authenticate()
+        ee.Initialize(project=GCP_PROJECT)
+        return True
+```
+
+### 2. **common/utils.py** - Complete utility functions
+
+```python
+"""
+Utility functions for Hyperion Flood Detection
+"""
+import os
+import json
+import numpy as np
+from datetime import datetime
+import matplotlib.pyplot as plt
+from PIL import Image
+import cv2
+
+def ensure_dir(path):
+    """Create directory if it doesn't exist"""
+    os.makedirs(path, exist_ok=True)
+    return path
+
+# Backward compatibility
+ensure = ensure_dir
+
+def ts():
+    """Timestamp for logging"""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+def save_json(data, filepath):
+    """Save data as JSON"""
+    with open(filepath, 'w') as f:
+        json.dump(data, f, indent=2)
+    return filepath
+
+def load_json(filepath):
+    """Load JSON data"""
+    with open(filepath, 'r') as f:
+        return json.load(f)
+
+def save_img(array, filepath, cmap=None, dpi=100):
+    """Save numpy array as image"""
+    if array.dtype != np.uint8:
+        # Normalize to 0-255 if needed
+        if array.max() <= 1.0:
+            array = (array * 255).astype(np.uint8)
+    
+    if len(array.shape) == 2:
+        # Grayscale
+        if cmap:
+            plt.imsave(filepath, array, cmap=cmap, dpi=dpi)
+        else:
+            Image.fromarray(array, mode='L').save(filepath)
+    else:
+        # Color
+        if array.shape[2] == 3:
+            Image.fromarray(array, mode='RGB').save(filepath)
+        elif array.shape[2] == 4:
+            Image.fromarray(array, mode='RGBA').save(filepath)
+    
+    return filepath
+
+def normalize_sar(data):
+    """Normalize SAR data to 0-1 range"""
+    return np.clip((10*np.log10(data+1e-6)+25)/30, 0, 1)
+
+def create_water_mask(ndwi, threshold=0.3):
+    """Create water mask from NDWI"""
+    return (ndwi > threshold).astype(np.uint8)
+
+def calculate_metrics(pred, target):
+    """Calculate evaluation metrics"""
+    intersection = (pred * target).sum()
+    union = ((pred + target) > 0).sum()
+    
+    dice = (2.0 * intersection) / (pred.sum() + target.sum() + 1e-8)
+    iou = intersection / (union + 1e-8)
+    accuracy = (pred == target).mean()
+    
+    return {
+        'dice': float(dice),
+        'iou': float(iou),
+        'accuracy': float(accuracy)
+    }
+
+def create_overlay(base_img, mask, color=[0, 0, 255], alpha=0.3):
+    """Create overlay visualization"""
+    if len(base_img.shape) == 2:
+        base_img = cv2.cvtColor(base_img, cv2.COLOR_GRAY2RGB)
+    
+    overlay = base_img.copy()
+    overlay[mask > 0] = overlay[mask > 0] * (1 - alpha) + np.array(color) * alpha
+    
+    return overlay.astype(np.uint8)
+
+def create_comparison_grid(images, titles=None, figsize=(15, 10)):
+    """Create a grid of comparison images"""
+    n = len(images)
+    cols = min(4, n)
+    rows = (n + cols - 1) // cols
+    
+    fig, axes = plt.subplots(rows, cols, figsize=figsize)
+    if rows == 1:
+        axes = [axes]
+    if cols == 1:
+        axes = [[ax] for ax in axes]
+    
+    for idx, img in enumerate(images):
+        row = idx // cols
+        col = idx % cols
+        ax = axes[row][col] if rows > 1 else axes[col]
+        
+        if len(img.shape) == 2:
+            ax.imshow(img, cmap='gray')
+        else:
+            ax.imshow(img)
+        
+        if titles and idx < len(titles):
+            ax.set_title(titles[idx])
+        ax.axis('off')
+    
+    plt.tight_layout()
+    return fig
+
+# For backward compatibility with existing scripts
+def download_url(url, filepath):
+    """Download file from URL"""
+    import requests
+    response = requests.get(url)
+    with open(filepath, 'wb') as f:
+        f.write(response.content)
+    return filepath
+```
+
+### 3. **common/__init__.py**
+
+```python
+"""Common utilities for Hyperion project"""
+from .config import *
+from .utils import *
+```
+
+### 4. **requirements.txt** - All necessary packages
+
+```txt
+# Core dependencies
+numpy>=1.21.0
+torch>=2.0.0
+torchvision>=0.15.0
+earthengine-api>=0.1.350
+segmentation-models-pytorch>=0.3.3
+
+# Image processing
+opencv-python>=4.8.0
+Pillow>=10.0.0
+imageio>=2.31.0
+imageio-ffmpeg>=0.4.8
+scipy>=1.11.0
+
+# Visualization
+matplotlib>=3.7.0
+plotly>=5.15.0
+kaleido>=0.2.1  # For plotly static export
+
+# Data handling
+pandas>=2.0.0
+requests>=2.31.0
+
+# Optional but recommended
+tqdm>=4.65.0
+scikit-learn>=1.3.0
+albumentations>=1.3.0
+
+# For advanced features
+transformers>=4.30.0  # If using transformer models
+tensorboard>=2.13.0  # For training visualization
+```
+
+### 5. **Updated Dashboard HTML** - Works with multi-location data
+
+```html
+<!-- assets/dashboard/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bangladesh Flood Analysis - Hyperion</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .hero {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.3;
+            background-image: url('hero/main_hero_flood.jpg');
+            background-size: cover;
+            background-position: center;
+            filter: blur(5px);
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #00d2ff, #3a7bd5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: fadeInUp 1s ease;
+        }
+        
+        .subtitle {
+            font-size: 1.5rem;
+            opacity: 0.9;
+            animation: fadeInUp 1s ease 0.2s both;
+        }
+        
+        .stats-container {
+            padding: 4rem 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            margin-bottom: 4rem;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 2rem;
+            border-radius: 1rem;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            animation: slideIn 0.5s ease forwards;
+            opacity: 0;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 210, 255, 0.3);
+        }
+        
+        .stat-value {
+            font-size: 3rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #ffd700, #ffed4e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-label {
+            font-size: 1rem;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .location-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin: 4rem 0;
+        }
+        
+        .location-card {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 1rem;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+        
+        .location-card:hover {
+            transform: scale(1.02);
+        }
+        
+        .location-header {
+            padding: 1.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .location-name {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .location-stats {
+            display: flex;
+            justify-content: space-around;
+            padding: 1rem;
+        }
+        
+        .chart-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes slideIn {
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .stat-card:nth-child(1) { animation-delay: 0.1s; }
+        .stat-card:nth-child(2) { animation-delay: 0.2s; }
+        .stat-card:nth-child(3) { animation-delay: 0.3s; }
+        .stat-card:nth-child(4) { animation-delay: 0.4s; }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <div class="hero-bg"></div>
+        <div class="hero-content">
+            <h1>BANGLADESH FLOOD DETECTION</h1>
+            <p class="subtitle">AI-Powered Multi-Location Disaster Analysis</p>
+        </div>
+    </div>
+    
+    <div class="stats-container">
+        <div class="stats-grid" id="mainStats"></div>
+        
+        <h2 style="text-align: center; margin: 3rem 0; font-size: 2.5rem;">
+            Location Analysis
+        </h2>
+        
+        <div class="location-cards" id="locationCards"></div>
+        
+        <div class="chart-container">
+            <div id="comparisonChart"></div>
+        </div>
+        
+        <div class="chart-container">
+            <div id="timelineChart"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Load and display data
+        async function loadDashboard() {
+            try {
+                const response = await fetch('multi_location_data.json');
+                const data = await response.json();
+                
+                // Display main stats
+                const mainStats = document.getElementById('mainStats');
+                const stats = data.overall_statistics;
+                
+                mainStats.innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-value">${stats.total_locations}</div>
+                        <div class="stat-label">Locations Analyzed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${stats.total_tiles_processed}</div>
+                        <div class="stat-label">Satellite Tiles</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${stats.total_area_covered_km2.toFixed(0)}</div>
+                        <div class="stat-label">Area (km²)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${(stats.peak_flood_coverage * 100).toFixed(1)}%</div>
+                        <div class="stat-label">Peak Flood</div>
+                    </div>
+                `;
+                
+                // Display location cards
+                const locationCards = document.getElementById('locationCards');
+                data.locations.forEach(loc => {
+                    const card = document.createElement('div');
+                    card.className = 'location-card';
+                    card.innerHTML = `
+                        <div class="location-header">
+                            <div class="location-name">${loc.name.replace(/_/g, ' ')}</div>
+                            <div>Quality Score: ${(loc.quality_score || 0).toFixed(1)}</div>
+                        </div>
+                        <div class="location-stats">
+                            <div>
+                                <div style="font-size: 1.5rem; font-weight: bold;">
+                                    ${loc.tiles}
+                                </div>
+                                <div style="opacity: 0.7;">Tiles</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 1.5rem; font-weight: bold;">
+                                    ${(loc.water_detection_rate * 100).toFixed(1)}%
+                                </div>
+                                <div style="opacity: 0.7;">Water</div>
+                            </div>
+                        </div>
+                    `;
+                    locationCards.appendChild(card);
+                });
+                
+                // Create comparison chart
+                const locations = data.locations.map(l => l.name);
+                const waterRates = data.locations.map(l => l.water_detection_rate * 100);
+                const qualityScores = data.locations.map(l => l.quality_score || 0);
+                
+                const comparisonTrace1 = {
+                    x: locations,
+                    y: waterRates,
+                    name: 'Water Detection Rate (%)',
+                    type: 'bar',
+                    marker: { color: 'rgba(0, 210, 255, 0.7)' }
+                };
+                
+                const comparisonTrace2 = {
+                    x: locations,
+                    y: qualityScores,
+                    name: 'Quality Score',
+                    type: 'bar',
+                    marker: { color: 'rgba(255, 215, 0, 0.7)' }
+                };
+                
+                const comparisonLayout = {
+                    title: 'Location Comparison',
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    plot_bgcolor: 'rgba(0,0,0,0.1)',
+                    font: { color: 'white' },
+                    xaxis: { gridcolor: 'rgba(255,255,255,0.1)' },
+                    yaxis: { gridcolor: 'rgba(255,255,255,0.1)' }
+                };
+                
+                Plotly.newPlot('comparisonChart', 
+                    [comparisonTrace1, comparisonTrace2], 
+                    comparisonLayout,
+                    {responsive: true}
+                );
+                
+                // Display insights
+                if (data.insights) {
+                    const insightsHtml = data.insights.map(insight => 
+                        `<li style="margin: 1rem 0;">${insight}</li>`
+                    ).join('');
+                    
+                    const insightsSection = document.createElement('div');
+                    insightsSection.className = 'chart-container';
+                    insightsSection.innerHTML = `
+                        <h3 style="margin-bottom: 1rem;">Key Insights</h3>
+                        <ul style="list-style: none; padding: 0;">
+                            ${insightsHtml}
+                        </ul>
+                    `;
+                    document.querySelector('.stats-container').appendChild(insightsSection);
+                }
+                
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+        
+        // Load dashboard on page load
+        loadDashboard();
+    </script>
+</body>
+</html>
+```
+
+### 6. **Installation Script** - Quick setup
+
+```bash
+#!/bin/bash
+# setup.sh - Run this to set up the environment
+
+echo "Setting up Hyperion Flood Detection Environment..."
+
+# Create virtual environment
+python -m venv flood_env
+source flood_env/bin/activate  # On Windows: flood_env\Scripts\activate
+
+# Install requirements
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Authenticate Earth Engine (only needed once)
+earthengine authenticate
+
+# Create directory structure
+mkdir -p data/{raw,tiles,previews}
+mkdir -p outputs/{models,predictions,metrics}
+mkdir -p assets/{hero,dashboard,comparisons,3d}
+
+echo "✅ Setup complete! Activate environment with: source flood_env/bin/activate"
+```
+
+## Running the Complete Pipeline
+
+```bash
+# 1. Activate environment
+source flood_env/bin/activate  # Windows: flood_env\Scripts\activate
+
+# 2. Download best Bangladesh flood imagery
+python 01_pull_premium_bangladesh.py
+
+# 3. Preprocess with multi-location support
+python 02_preprocess_multi.py
+
+# 4. Train advanced model
+python 03_train_multi_location.py
+
+# 5. Generate visualizations and dashboard
+python 04_export_multi_assets.py
+
+# 6. Open dashboard
+# Open assets/dashboard/index.html in browser
+```
+
+## Compatibility Notes
+
+**Yes, the earlier visualizations will still work!** The system is designed to be backward compatible:
+
+1. **Single location mode**: If you only download one location, it works like before
+2. **Dashboard**: Automatically adapts to show either single or multiple locations
+3. **Visualizations**: All earlier visualization code still works, just enhanced for multiple locations
+4. **Data format**: Same NPY format, just with location prefixes in filenames
+
+The main differences:
+- Filenames now include location (e.g., `S1_Sylhet_2022_flood.npy`)
+- Metadata includes location information
+- Dashboard shows comparison across locations
+- Training uses all locations for better generalization
+
+This gives you a professional, SOTD-worthy system that can analyze multiple flood events across Bangladesh with stunning visualizations!

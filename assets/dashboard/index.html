@@ -1,0 +1,325 @@
+<!-- assets/dashboard/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bangladesh Flood Analysis - Hyperion</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .hero {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.3;
+            background-image: url('hero/main_hero_flood.jpg');
+            background-size: cover;
+            background-position: center;
+            filter: blur(5px);
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #00d2ff, #3a7bd5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: fadeInUp 1s ease;
+        }
+        
+        .subtitle {
+            font-size: 1.5rem;
+            opacity: 0.9;
+            animation: fadeInUp 1s ease 0.2s both;
+        }
+        
+        .stats-container {
+            padding: 4rem 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            margin-bottom: 4rem;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 2rem;
+            border-radius: 1rem;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            animation: slideIn 0.5s ease forwards;
+            opacity: 0;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 210, 255, 0.3);
+        }
+        
+        .stat-value {
+            font-size: 3rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #ffd700, #ffed4e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-label {
+            font-size: 1rem;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .location-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin: 4rem 0;
+        }
+        
+        .location-card {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 1rem;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+        
+        .location-card:hover {
+            transform: scale(1.02);
+        }
+        
+        .location-header {
+            padding: 1.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .location-name {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .location-stats {
+            display: flex;
+            justify-content: space-around;
+            padding: 1rem;
+        }
+        
+        .chart-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes slideIn {
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .stat-card:nth-child(1) { animation-delay: 0.1s; }
+        .stat-card:nth-child(2) { animation-delay: 0.2s; }
+        .stat-card:nth-child(3) { animation-delay: 0.3s; }
+        .stat-card:nth-child(4) { animation-delay: 0.4s; }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <div class="hero-bg"></div>
+        <div class="hero-content">
+            <h1>BANGLADESH FLOOD DETECTION</h1>
+            <p class="subtitle">AI-Powered Multi-Location Disaster Analysis</p>
+        </div>
+    </div>
+    
+    <div class="stats-container">
+        <div class="stats-grid" id="mainStats"></div>
+        
+        <h2 style="text-align: center; margin: 3rem 0; font-size: 2.5rem;">
+            Location Analysis
+        </h2>
+        
+        <div class="location-cards" id="locationCards"></div>
+        
+        <div class="chart-container">
+            <div id="comparisonChart"></div>
+        </div>
+        
+        <div class="chart-container">
+            <div id="timelineChart"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Load and display data
+        async function loadDashboard() {
+            try {
+                const response = await fetch('multi_location_data.json');
+                const data = await response.json();
+                
+                // Display main stats
+                const mainStats = document.getElementById('mainStats');
+                const stats = data.overall_statistics;
+                
+                mainStats.innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-value">${stats.total_locations}</div>
+                        <div class="stat-label">Locations Analyzed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${stats.total_tiles_processed}</div>
+                        <div class="stat-label">Satellite Tiles</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${stats.total_area_covered_km2.toFixed(0)}</div>
+                        <div class="stat-label">Area (km²)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${(stats.peak_flood_coverage * 100).toFixed(1)}%</div>
+                        <div class="stat-label">Peak Flood</div>
+                    </div>
+                `;
+                
+                // Display location cards
+                const locationCards = document.getElementById('locationCards');
+                data.locations.forEach(loc => {
+                    const card = document.createElement('div');
+                    card.className = 'location-card';
+                    card.innerHTML = `
+                        <div class="location-header">
+                            <div class="location-name">${loc.name.replace(/_/g, ' ')}</div>
+                            <div>Quality Score: ${(loc.quality_score || 0).toFixed(1)}</div>
+                        </div>
+                        <div class="location-stats">
+                            <div>
+                                <div style="font-size: 1.5rem; font-weight: bold;">
+                                    ${loc.tiles}
+                                </div>
+                                <div style="opacity: 0.7;">Tiles</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 1.5rem; font-weight: bold;">
+                                    ${(loc.water_detection_rate * 100).toFixed(1)}%
+                                </div>
+                                <div style="opacity: 0.7;">Water</div>
+                            </div>
+                        </div>
+                    `;
+                    locationCards.appendChild(card);
+                });
+                
+                // Create comparison chart
+                const locations = data.locations.map(l => l.name);
+                const waterRates = data.locations.map(l => l.water_detection_rate * 100);
+                const qualityScores = data.locations.map(l => l.quality_score || 0);
+                
+                const comparisonTrace1 = {
+                    x: locations,
+                    y: waterRates,
+                    name: 'Water Detection Rate (%)',
+                    type: 'bar',
+                    marker: { color: 'rgba(0, 210, 255, 0.7)' }
+                };
+                
+                const comparisonTrace2 = {
+                    x: locations,
+                    y: qualityScores,
+                    name: 'Quality Score',
+                    type: 'bar',
+                    marker: { color: 'rgba(255, 215, 0, 0.7)' }
+                };
+                
+                const comparisonLayout = {
+                    title: 'Location Comparison',
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    plot_bgcolor: 'rgba(0,0,0,0.1)',
+                    font: { color: 'white' },
+                    xaxis: { gridcolor: 'rgba(255,255,255,0.1)' },
+                    yaxis: { gridcolor: 'rgba(255,255,255,0.1)' }
+                };
+                
+                Plotly.newPlot('comparisonChart', 
+                    [comparisonTrace1, comparisonTrace2], 
+                    comparisonLayout,
+                    {responsive: true}
+                );
+                
+                // Display insights
+                if (data.insights) {
+                    const insightsHtml = data.insights.map(insight => 
+                        `<li style="margin: 1rem 0;">${insight}</li>`
+                    ).join('');
+                    
+                    const insightsSection = document.createElement('div');
+                    insightsSection.className = 'chart-container';
+                    insightsSection.innerHTML = `
+                        <h3 style="margin-bottom: 1rem;">Key Insights</h3>
+                        <ul style="list-style: none; padding: 0;">
+                            ${insightsHtml}
+                        </ul>
+                    `;
+                    document.querySelector('.stats-container').appendChild(insightsSection);
+                }
+                
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+        
+        // Load dashboard on page load
+        loadDashboard();
+    </script>
+</body>
+</html>

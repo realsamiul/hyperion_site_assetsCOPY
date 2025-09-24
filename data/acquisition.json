@@ -1,0 +1,68 @@
+{
+  "timestamp": "2025-09-24T01:15:04.746542",
+  "project": "hyperion-472805",
+  "locations": [
+    {
+      "name": "Gaibandha_2020",
+      "center": [
+        89.543,
+        25.3297
+      ],
+      "size": 0.3,
+      "periods": {
+        "pre": [
+          "2020-06-01",
+          "2020-06-30"
+        ],
+        "flood": [
+          "2020-07-15",
+          "2020-08-15"
+        ],
+        "post": [
+          "2020-08-16",
+          "2020-09-15"
+        ]
+      }
+    },
+    {
+      "name": "Sylhet_2024",
+      "center": [
+        91.8687,
+        24.8949
+      ],
+      "size": 0.3,
+      "periods": {
+        "pre": [
+          "2024-05-01",
+          "2024-05-31"
+        ],
+        "flood": [
+          "2024-06-01",
+          "2024-06-30"
+        ],
+        "post": [
+          "2024-07-01",
+          "2024-07-31"
+        ]
+      }
+    }
+  ],
+  "downloaded": [
+    "../data\\raw\\S1_Gaibandha_2020_pre.npy",
+    "../data\\raw\\S2_Gaibandha_2020_pre.npy",
+    "../data\\raw\\S1_Gaibandha_2020_flood.npy",
+    "../data\\raw\\S2_Gaibandha_2020_flood.npy",
+    "../data\\raw\\S1_Gaibandha_2020_post.npy",
+    "../data\\raw\\S2_Gaibandha_2020_post.npy",
+    "../data\\raw\\S1_Sylhet_2024_pre.npy",
+    "../data\\raw\\S2_Sylhet_2024_pre.npy",
+    "../data\\raw\\S1_Sylhet_2024_flood.npy",
+    "../data\\raw\\S1_Sylhet_2024_post.npy"
+  ],
+  "failed": [],
+  "summary": {
+    "total_attempts": 10,
+    "successful": 10,
+    "failed": 0
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "meta":{"model_id":"","model_name":"","version":"0.1.0","generated_at":"",
+          "aoi_bbox":[],"aoi_name":"","periods":[],"tags":[]},
+  "story":{"one_liner":"","elevator":"","audiences":{},"cta":""},
+  "dataset":{},"processing":{},"training":{},
+  "results":{"qualitative":{},"quantitative":{},"takeaways":[]},
+  "challenges":{},"system":{},"scripts":[],
+  "artifacts":{"images":{},"downloads":{}},
+  "credits":{},"press":{}
+}

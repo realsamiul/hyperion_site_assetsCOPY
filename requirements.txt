@@ -1,0 +1,31 @@
+# Core dependencies
+numpy>=1.21.0
+torch>=2.0.0
+torchvision>=0.15.0
+earthengine-api>=0.1.350
+segmentation-models-pytorch>=0.3.3
+
+# Image processing
+opencv-python>=4.8.0
+Pillow>=10.0.0
+imageio>=2.31.0
+imageio-ffmpeg>=0.4.8
+scipy>=1.11.0
+
+# Visualization
+matplotlib>=3.7.0
+plotly>=5.15.0
+kaleido>=0.2.1  # For plotly static export
+
+# Data handling
+pandas>=2.0.0
+requests>=2.31.0
+
+# Optional but recommended
+tqdm>=4.65.0
+scikit-learn>=1.3.0
+albumentations>=1.3.0
+
+# For advanced features
+transformers>=4.30.0  # If using transformer models
+tensorboard>=2.13.0  # For training visualization

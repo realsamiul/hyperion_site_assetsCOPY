@@ -1,0 +1,1 @@
+{"type": "FeatureCollection", "columns": {}, "properties": {"band_order": ["VV", "VH"]}, "features": [{"type": "Feature", "geometry": null, "id": "845", "properties": {"VH": 1.4722110779014899, "VV": 1.4688547604232736}}]}
